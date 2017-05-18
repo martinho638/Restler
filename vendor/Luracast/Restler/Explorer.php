@@ -180,7 +180,7 @@ class Explorer implements iProvideMultiVersionApi
 
         $info = parse_url($this->restler->getBaseUrl());
         $r->host = $info['host'];
-        $r->basePath = $info['path'];
+        $r->basePath = isset($info['path']) ? $info['path'] : "";
         if (!empty(static::$schemes)) {
             $r->schemes = static::$schemes;
         }
@@ -444,61 +444,59 @@ class Explorer implements iProvideMultiVersionApi
 
         return $r;
     }
-
-    private function setType(&$object, ValidationInfo $info)
-    {
+    
+    private function setType(&$object, ValidationInfo $info) {
         //TODO: proper type management
         $type = Util::getShortName($info->type);
         if ($info->type == 'array') {
+            $object->type = 'array';
             if ($info->children) {
                 $contentType = Util::getShortName($info->contentType);
                 $model = $this->model($contentType, $info->children);
-                $object->items = (object)array(
-                    '$ref' => "$contentType"
+                $object->items = (object) array(
+                            '$ref' => "#/definitions/$contentType"
                 );
             } elseif ($info->contentType && $info->contentType == 'associative') {
                 unset($info->contentType);
                 $this->model($info->type = 'Object', array(
                     array(
-                        'name'        => 'property',
-                        'type'        => 'string',
-                        'default'     => '',
-                        'required'    => false,
+                        'name' => 'property',
+                        'type' => 'string',
+                        'default' => '',
+                        'required' => false,
                         'description' => ''
                     )
                 ));
             } elseif ($info->contentType && $info->contentType != 'indexed') {
                 $contentType = Util::getShortName($info->contentType);
-                $object->items = (object)array(
-                    '$ref' => "#/definitions/$contentType"
+                $object->items = (object) array(
+                            '$ref' => "#/definitions/$contentType"
                 );
             } else {
-                $object->items = (object)array(
-                    'type' => 'string'
+                $object->items = (object) array(
+                            'type' => 'string'
                 );
             }
         } elseif ($info->children) {
             $this->model($type, $info->children);
+            $object->{'$ref'} = "#/definitions/$type";
         } elseif (is_string($info->type) && $t = Util::nestedValue(static::$dataTypeAlias, strtolower($info->type))) {
             if (is_array($t)) {
-                $type = $t[0];
+                $object->type = $t[0];
                 $object->format = $t[1];
             } else {
-                $type = $t;
+                $object->type = $t;
             }
         } else {
-            $type = 'string';
+            $object->type = 'string';
         }
-        $object->type = $type;
         $has64bit = PHP_INT_MAX > 2147483647;
-        if ($object->type == 'integer') {
-            $object->format = $has64bit
-                ? 'int64'
-                : 'int32';
-        } elseif ($object->type == 'number') {
-            $object->format = $has64bit
-                ? 'double'
-                : 'float';
+        if (isset($object->type)) {
+            if ($object->type == 'integer') {
+                $object->format = $has64bit ? 'int64' : 'int32';
+            } elseif ($object->type == 'number') {
+                $object->format = $has64bit ? 'double' : 'float';
+            }
         }
     }
 
